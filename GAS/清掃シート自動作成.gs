@@ -11,7 +11,7 @@ function onOpen() {
 
 // 抽出元（アサイン表）を探すときの基準ファイル。
 // このファイルと同じフォルダから、月ごとのアサイン表を自動で探します。
-const REFERENCE_SOURCE_URL = "https://docs.google.com/spreadsheets/d/1bTKGyMFzNVTsaEDvLnbDtFioEdyW5pag8cLO7NZPWGI/edit?gid=1385730121#gid=1385730121";
+const REFERENCE_SOURCE_URL = "https://docs.google.com/spreadsheets/d/1AG6vjtCO7T_vZd0t_2Ac7vhATJ6OOkZCilU2MqlLSr0/edit?gid=320696630#gid=320696630";
 
 // 月ごとの抽出元URLを覚えておくスクリプトプロパティのキー接頭辞。
 const SOURCE_URL_PREFIX = 'SOURCE_URL_';
@@ -229,6 +229,8 @@ function createSheetForNextDay() {
   const sValuesToday = templateSheet.getRange("T3:T28").getValues();
   const d_mValuesToday = templateSheet.getRange("D3:M28").getValues();
   const o_pValuesToday = templateSheet.getRange("O3:P28").getValues();
+  // 前日（今日）のアサイン表V列（客室備考）：一休の会員ステータス「DIA」の判定に使用
+  const vValuesToday = sourceSheetToday.getRange("V3:V6").getValues().concat(sourceSheetToday.getRange("V27:V48").getValues());
 
   // =================================================================
   // 3. 新しいシートの作成とロジック計算 (26回ループ)
@@ -264,6 +266,14 @@ function createSheetForNextDay() {
 
     if (isMarriott && bValue === 'IN') {
       bValue = 'IN(M)';
+    }
+
+    // 一休のDIA会員（レイトチェックアウト特典あり）の判定：
+    // 前日のアサイン表V列（客室備考）に「DIA」が含まれていたら、翌日のB列を「レイト」にする。
+    // ※「連泊」（同じお客様が滞在継続＝チェックアウトしない）の場合は対象外。
+    const vToday = String(vValuesToday[i][0]).trim().toUpperCase();
+    if (vToday.indexOf('DIA') !== -1 && sToday !== "" && bValue !== '連泊') {
+      bValue = 'レイト';
     }
 
     if (sNew !== "") {
@@ -321,7 +331,7 @@ function onEdit(e) {
   if (col === 2) {
     const bValue = range.getValue();
     const cValue = sheet.getRange(row, 3).getValue();
-    if (bValue === "IN" || bValue === "IN(M)" || cValue === "連泊A") {
+    if (bValue === "IN" || bValue === "IN(M)" || bValue === "レイト" || cValue === "連泊A") {
       const { d_m } = determineCleaningTasks(bValue, cValue);
       sheet.getRange(row, 4, 1, 10).setValues([d_m]);
     }
@@ -344,7 +354,8 @@ function onEdit(e) {
 function determineCleaningTasks(bValue, cValue) {
   let d_m = Array(10).fill('');
   let o_p = Array(2).fill('');
-  if (bValue === "IN" || bValue === "IN(M)") d_m.fill('未');
+  // 「レイト」はDIA会員のレイトチェックアウト（従来はINだった部屋）なので、INと同様に清掃タスクを立てる
+  if (bValue === "IN" || bValue === "IN(M)" || bValue === "レイト") d_m.fill('未');
 
   switch (cValue) {
     case "連泊A":
